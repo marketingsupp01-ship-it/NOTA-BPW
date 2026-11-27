@@ -1,0 +1,6 @@
+{
+  "name": "Proforma Invoice Horizontal",
+  "description": "Aplikasi pembuat dan pencetak Proforma Invoice horizontal (A4 Landscape) dengan pratinjau langsung, kalkulasi otomatis, dan ekspor PDF/PNG.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
