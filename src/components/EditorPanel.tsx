@@ -92,6 +92,7 @@ export function EditorPanel({
   const [codeInputText, setCodeInputText] = useState<string>(
     data.priceCode === 'AUTO' ? 'AUTO' : data.priceCode,
   );
+  const recipientDetailsRef = useRef<HTMLTextAreaElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const blurTimeoutRef = useRef<number | null>(null);
@@ -364,6 +365,12 @@ export function EditorPanel({
                     }
                   });
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    recipientDetailsRef.current?.focus();
+                  }
+                }}
                 placeholder="Contoh: SUMBERSARI"
                 className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm uppercase text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
@@ -375,6 +382,7 @@ export function EditorPanel({
               Nama Pemesan / Toko (opsional)
             </label>
             <textarea
+              ref={recipientDetailsRef}
               id="doc-recipient-details"
               rows={2}
               value={data.recipientDetails}
