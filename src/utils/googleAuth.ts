@@ -20,8 +20,9 @@ export const SHEETS_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
 ] as const;
 
-const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
-const auth = getAuth(app);
+export const firebaseApp = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
+export const firebaseAuth = getAuth(firebaseApp);
+const auth = firebaseAuth;
 
 void setPersistence(auth, browserLocalPersistence).catch(() => {
   // Fallback safely if persistent IndexedDB storage is restricted

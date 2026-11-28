@@ -668,12 +668,6 @@ export function EditorPanel({
                       <span className="text-xs font-medium text-slate-900 truncate">
                         {renderHighlightedProductName(product.name, draft.name)}
                       </span>
-                      <span className="text-[11px] font-mono-tabular text-slate-600 shrink-0">
-                        {product.unit}
-                        {product.defaultPrice
-                          ? ` · Rp ${formatRupiahNumber(parseNumericInput(product.defaultPrice))}`
-                          : ''}
-                      </span>
                     </button>
                   ))}
                 </div>

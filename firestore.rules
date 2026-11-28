@@ -1,0 +1,186 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connectivity probe used at app startup (read-only empty probe doc)
+    match /test/connection {
+      allow get: if true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidDisplayOptions(opts) {
+      return opts is map
+        && opts.keys().hasAll(['showRowDividers', 'showInvoiceNumber'])
+        && opts.keys().hasOnly(['showRowDividers', 'showInvoiceNumber'])
+        && opts.showRowDividers is bool
+        && opts.showInvoiceNumber is bool;
+    }
+
+    function isValidInvoiceDataMap(d) {
+      return d is map
+        && d.keys().hasAll([
+          'id',
+          'documentTitle',
+          'dateText',
+          'district',
+          'recipientHeading',
+          'recipientDetails',
+          'priceCode',
+          'items',
+          'subtotalLabel',
+          'totalLabel',
+          'attentionTitle',
+          'attentionLines',
+          'signatureGreeting',
+          'signatureName',
+          'displayOptions'
+        ])
+        && d.keys().hasOnly([
+          'id',
+          'documentTitle',
+          'invoiceNumber',
+          'dateText',
+          'district',
+          'city',
+          'creatorColor',
+          'recipientHeading',
+          'recipientDetails',
+          'priceCode',
+          'items',
+          'subtotalLabel',
+          'totalLabel',
+          'attentionTitle',
+          'attentionLines',
+          'signatureGreeting',
+          'signatureName',
+          'displayOptions'
+        ])
+        && d.id is string && d.id.size() >= 1 && d.id.size() <= 128
+        && d.documentTitle is string && d.documentTitle.size() <= 120
+        && (!('invoiceNumber' in d) || (d.invoiceNumber is string && d.invoiceNumber.size() <= 120))
+        && d.dateText is string && d.dateText.size() <= 120
+        && d.district is string && d.district.size() <= 120
+        && (!('city' in d) || (d.city is string && d.city.size() <= 120))
+        && (!('creatorColor' in d) || (d.creatorColor is string && d.creatorColor.size() <= 24))
+        && d.recipientHeading is string && d.recipientHeading.size() <= 120
+        && d.recipientDetails is string && d.recipientDetails.size() <= 500
+        && d.priceCode is string && d.priceCode.size() <= 10 && d.priceCode in ['', 'AUTO', '5', '10', '20', '40', 'TB']
+        && d.items is list && d.items.size() >= 1 && d.items.size() <= 200 && d.items[0] is map
+        && d.subtotalLabel is string && d.subtotalLabel.size() <= 120
+        && d.totalLabel is string && d.totalLabel.size() <= 120
+        && d.attentionTitle is string && d.attentionTitle.size() <= 120
+        && d.attentionLines is list && d.attentionLines.size() <= 10 && (d.attentionLines.size() == 0 || d.attentionLines[0] is map)
+        && d.signatureGreeting is string && d.signatureGreeting.size() <= 120
+        && d.signatureName is string && d.signatureName.size() <= 120
+        && isValidDisplayOptions(d.displayOptions);
+    }
+
+    function isValidSharedInvoice(data, invoiceId) {
+      return data.keys().hasAll([
+          'id',
+          'workspaceKey',
+          'label',
+          'total',
+          'savedAt',
+          'creatorColor',
+          'createdByUid',
+          'updatedByUid',
+          'updatedByLabel',
+          'createdAt',
+          'updatedAt',
+          'data'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'workspaceKey',
+          'label',
+          'total',
+          'savedAt',
+          'creatorColor',
+          'createdByUid',
+          'updatedByUid',
+          'updatedByLabel',
+          'createdAt',
+          'updatedAt',
+          'data'
+        ])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id == invoiceId
+        && data.workspaceKey is string && data.workspaceKey.size() <= 32 && data.workspaceKey == 'shared_team'
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 200
+        && data.total is number && data.total >= 0
+        && data.savedAt is string && data.savedAt.size() >= 1 && data.savedAt.size() <= 64
+        && data.creatorColor is string && data.creatorColor.size() <= 24
+        && data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128
+        && data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128
+        && data.updatedByLabel is string && data.updatedByLabel.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && isValidInvoiceDataMap(data.data);
+    }
+
+    match /invoices/{invoiceId} {
+      allow get: if isVerifiedUser()
+        && isValidId(invoiceId)
+        && existing().workspaceKey == 'shared_team';
+
+      allow list: if isVerifiedUser()
+        && existing().workspaceKey == 'shared_team';
+
+      allow create: if isVerifiedUser()
+        && isValidId(invoiceId)
+        && isValidSharedInvoice(incoming(), invoiceId)
+        && incoming().createdByUid == request.auth.uid
+        && incoming().updatedByUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(invoiceId)
+        && isValidSharedInvoice(incoming(), invoiceId)
+        && existing().workspaceKey == 'shared_team'
+        && incoming().createdByUid == existing().createdByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().workspaceKey == existing().workspaceKey
+        && incoming().updatedByUid == request.auth.uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'label',
+          'total',
+          'savedAt',
+          'creatorColor',
+          'updatedByUid',
+          'updatedByLabel',
+          'updatedAt',
+          'data'
+        ]);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(invoiceId)
+        && existing().workspaceKey == 'shared_team';
+    }
+  }
+}

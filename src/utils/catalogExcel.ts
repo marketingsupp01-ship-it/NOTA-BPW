@@ -25,7 +25,7 @@ const NAME_HEADER_PATTERNS = [
   'deskripsi',
   'uraian',
 ];
-const UNIT_HEADER_PATTERNS = ['satuan', 'unit', 'uom', 'sat'];
+const UNIT_HEADER_PATTERNS = ['satuan', 'unit', 'uom', 'sat.', 'stn', 'sat'];
 const PRICE_HEADER_PATTERNS = [
   'harga katalog',
   'harga normal',
@@ -246,12 +246,12 @@ export function parseWorkbookSheets(sheets: ParsedSheetInput[]): CatalogImportRe
         if (p40) entry.tierPrices['40'] = p40;
       }
 
-      // Determine primary price column for this row
+      // Determine primary price column for this row (only inspect columns after nameCol so row numbers aren't misread as prices)
       let effectivePriceCol = priceCol;
       if (effectivePriceCol < 0 && role !== 'satuan') {
         effectivePriceCol = row.findIndex(
           (cell, idx) =>
-            idx !== nameCol &&
+            idx > nameCol &&
             idx !== unitCol &&
             idx !== col5 &&
             idx !== col10 &&

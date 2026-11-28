@@ -3,6 +3,7 @@
   "appId": "1:189518254864:web:ec978a41b6bd0f245dcb95",
   "apiKey": "AIzaSyAs2fc3UKTrtStMp35srjJYz0nlMIbQpWg",
   "authDomain": "gen-lang-client-0569035027.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-horizonsnap-bb507439-7db3-487f-aa43-14854728dae2",
   "storageBucket": "gen-lang-client-0569035027.firebasestorage.app",
   "messagingSenderId": "189518254864",
   "measurementId": "",

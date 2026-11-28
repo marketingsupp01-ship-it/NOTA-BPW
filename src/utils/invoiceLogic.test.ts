@@ -467,3 +467,30 @@ test('finalizeInvoiceToHistory saves nota to history, updates edited history in 
   assert.equal(hasInvoiceContent(step2.nextInvoice), false);
   assert.equal(step2.nextInvoice.creatorColor, '#16a34a');
 });
+
+test('parseWorkbookSheets never misreads leading No column as Rp 1 price', () => {
+  const result = parseWorkbookSheets([
+    {
+      sheetName: 'katalog',
+      rows: [
+        ['NO', 'NAMA BARANG', 'NOMINAL'],
+        [1, 'KANAL C 75 X 75 KENCANA', 95000],
+        [2, 'KANAL C 80 X 75 KENCANA', 102000],
+      ],
+    },
+  ]);
+  assert.equal(result.products.length, 2);
+  assert.equal(result.products[0].defaultPrice, '95000');
+  assert.equal(result.products[1].defaultPrice, '102000');
+
+  const noNominalHeader = parseWorkbookSheets([
+    {
+      sheetName: 'katalog',
+      rows: [
+        ['NO', 'NAMA BARANG', 'LIST'],
+        [1, 'KANAL C 75 X 75 KENCANA', 95000],
+      ],
+    },
+  ]);
+  assert.equal(noNominalHeader.products[0].defaultPrice, '95000');
+});

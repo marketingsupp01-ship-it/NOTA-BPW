@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { FileText, Search, Trash2, X } from 'lucide-react';
+import { FileText, Search, Trash2, Users, X } from 'lucide-react';
 import type { SavedInvoiceRecord } from '../types/invoice';
-import { formatDistrictAddress, formatRupiahNumber } from '../utils/invoiceLogic';
+import { DEFAULT_CREATOR_COLOR, formatDistrictAddress, formatRupiahNumber } from '../utils/invoiceLogic';
 
 interface HistoryModalProps {
   isOpen: boolean;
   records: SavedInvoiceRecord[];
   activeRecordId?: string | null;
+  isSharedConnected?: boolean;
+  sharedError?: string | null;
+  onSignInGoogle?: () => void;
   onClose: () => void;
   onLoad: (record: SavedInvoiceRecord) => void;
   onDelete: (id: string) => void;
@@ -16,6 +19,9 @@ export function HistoryModal({
   isOpen,
   records,
   activeRecordId = null,
+  isSharedConnected = false,
+  sharedError = null,
+  onSignInGoogle,
   onClose,
   onLoad,
   onDelete,
@@ -28,10 +34,12 @@ export function HistoryModal({
     const q = query.trim().toLowerCase();
     if (!q) return true;
     const districtLabel = (rec.data.district ?? rec.data.city ?? '').toLowerCase();
+    const editorLabel = (rec.updatedByLabel ?? '').toLowerCase();
     return (
       rec.label.toLowerCase().includes(q) ||
       rec.data.dateText.toLowerCase().includes(q) ||
-      districtLabel.includes(q)
+      districtLabel.includes(q) ||
+      editorLabel.includes(q)
     );
   });
 
@@ -45,11 +53,19 @@ export function HistoryModal({
       <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl flex flex-col max-h-[82vh]">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 id="history-modal-title" className="text-base font-semibold text-slate-900">
-              Riwayat Invoice Tersimpan
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 id="history-modal-title" className="text-base font-semibold text-slate-900">
+                Riwayat Nota Bersama
+              </h2>
+              {isSharedConnected && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">
+                  <Users className="w-3 h-3" aria-hidden="true" />
+                  Sinkron Tim
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Klik nota mana pun untuk mengeditnya kembali secara langsung tanpa membuat nota baru.
+              Semua pengguna berbagi 1 riwayat yang sama dan bisa mengedit nota pengguna lain.
             </p>
           </div>
           <button
@@ -62,6 +78,27 @@ export function HistoryModal({
           </button>
         </div>
 
+        {!isSharedConnected && onSignInGoogle && (
+          <div className="mx-5 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-amber-900">
+              Masuk dengan Google agar riwayat nota tersinkron &amp; bisa diedit antar pengguna.
+            </span>
+            <button
+              type="button"
+              onClick={onSignInGoogle}
+              className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer shrink-0"
+            >
+              Sign in with Google
+            </button>
+          </div>
+        )}
+
+        {sharedError && (
+          <p role="status" className="mx-5 mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            {sharedError}
+          </p>
+        )}
+
         <div className="px-5 py-3 border-b border-slate-100">
           <div className="relative">
             <Search
@@ -72,7 +109,7 @@ export function HistoryModal({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari pemesan, kecamatan, atau tanggal..."
+              placeholder="Cari pemesan, kecamatan, tanggal, atau pembuat..."
               aria-label="Cari riwayat invoice"
               className="w-full rounded-md border border-slate-300 pl-9 pr-3 py-1.5 text-sm text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
             />
@@ -98,6 +135,7 @@ export function HistoryModal({
             filtered.map((rec) => {
               const districtDisplay = formatDistrictAddress(rec.data.district ?? '');
               const isEditingThis = activeRecordId === rec.id;
+              const badgeColor = rec.creatorColor || rec.data.creatorColor || DEFAULT_CREATOR_COLOR;
               return (
                 <div
                   key={rec.id}
@@ -118,6 +156,11 @@ export function HistoryModal({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
+                        <span
+                          aria-hidden="true"
+                          className="w-2.5 h-2.5 rounded-xs shrink-0 border border-black/15"
+                          style={{ backgroundColor: badgeColor }}
+                        />
                         <p className="text-sm font-semibold text-slate-900 truncate">
                           {rec.label}
                         </p>
@@ -131,6 +174,7 @@ export function HistoryModal({
                         {[districtDisplay, rec.data.dateText].filter(Boolean).join(' · ')} ·{' '}
                         {rec.data.items.filter((i) => i.name.trim() || i.qty.trim() || i.price.trim()).length}{' '}
                         baris · Rp {formatRupiahNumber(rec.total)}
+                        {rec.updatedByLabel ? ` · ${rec.updatedByLabel}` : ''}
                       </p>
                     </div>
                     <span className="text-xs font-medium text-slate-700 shrink-0">

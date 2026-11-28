@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "SharedInvoice": {
+      "title": "SharedInvoice",
+      "description": "Shared Proforma Invoice record accessible and editable by all signed-in team users.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique document ID matching the invoice ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "workspaceKey": {
+          "type": "string",
+          "description": "Shared team workspace partition key",
+          "enum": ["shared_team"],
+          "maxLength": 32
+        },
+        "label": {
+          "type": "string",
+          "description": "Summary display label for history listing",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "total": {
+          "type": "number",
+          "description": "Computed grand total in IDR"
+        },
+        "savedAt": {
+          "type": "string",
+          "description": "ISO-8601 timestamp string of latest save",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "creatorColor": {
+          "type": "string",
+          "description": "Creator corner identity hex color",
+          "maxLength": 24
+        },
+        "createdByUid": {
+          "type": "string",
+          "description": "UID of the user who first saved this invoice",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID of the user who last edited this invoice",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "updatedByLabel": {
+          "type": "string",
+          "description": "Non-PII display label of the user who last edited this invoice",
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        },
+        "data": {
+          "type": "object",
+          "description": "Structured Proforma Invoice payload map"
+        }
+      },
+      "required": [
+        "id",
+        "workspaceKey",
+        "label",
+        "total",
+        "savedAt",
+        "creatorColor",
+        "createdByUid",
+        "updatedByUid",
+        "updatedByLabel",
+        "createdAt",
+        "updatedAt",
+        "data"
+      ]
+    }
+  },
+  "firestore": {
+    "/invoices/{invoiceId}": {
+      "schema": {
+        "$ref": "#/entities/SharedInvoice"
+      },
+      "description": "Shared invoice history collection allowing verified team users to read, create, edit, and delete shared invoices."
+    }
+  }
+}

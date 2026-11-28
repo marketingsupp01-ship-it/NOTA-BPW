@@ -43,6 +43,12 @@ import {
   syncDateTextToToday,
   upsertHistoryRecord,
 } from './utils/invoiceLogic';
+import {
+  deleteSharedInvoice,
+  subscribeToSharedInvoices,
+  upsertSharedInvoice,
+} from './utils/sharedHistory';
+import { mergeSharedAndLocalHistory } from './utils/sharedHistoryHelpers';
 
 const ACTIVE_STORAGE_KEY = 'proforma_invoice_active_v1';
 const HISTORY_STORAGE_KEY = 'proforma_invoice_history_v1';
@@ -208,6 +214,7 @@ export default function App() {
   const [sheetStatus, setSheetStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null,
   );
+  const [sharedHistoryError, setSharedHistoryError] = useState<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const isAutoDateRef = useRef(true);
@@ -215,6 +222,10 @@ export default function App() {
   const isSyncingRef = useRef(false);
   const catalogRef = useRef(catalog);
   catalogRef.current = catalog;
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  const hasMigratedLocalHistoryRef = useRef(false);
+  const pendingFirestoreSyncRef = useRef<number | null>(null);
 
   useEffect(() => {
     const syncIfAuto = () => {
@@ -309,9 +320,47 @@ export default function App() {
 
   const summary = resolveInvoiceSummary(invoice, catalog);
 
+  // Subscribe to shared team invoice history in Firestore once authenticated
+  useEffect(() => {
+    if (!isGoogleSignedIn) {
+      hasMigratedLocalHistoryRef.current = false;
+      setSharedHistoryError(null);
+      return;
+    }
+
+    const unsubscribe = subscribeToSharedInvoices(
+      (remoteRecords) => {
+        setSharedHistoryError(null);
+        if (!hasMigratedLocalHistoryRef.current) {
+          hasMigratedLocalHistoryRef.current = true;
+          const remoteIds = new Set(remoteRecords.map((r) => r.id));
+          const localOnly = historyRef.current.filter((rec) => !remoteIds.has(rec.id));
+          for (const rec of localOnly) {
+            void upsertSharedInvoice(rec).catch(() => {
+              // Ignore migration write errors; surface via listener if needed
+            });
+          }
+          setHistory(mergeSharedAndLocalHistory(remoteRecords, localOnly));
+          return;
+        }
+        setHistory(remoteRecords);
+      },
+      () => {
+        setSharedHistoryError(
+          'Gagal menyinkronkan riwayat nota bersama dari server. Perubahan tetap tersimpan secara lokal.',
+        );
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isGoogleSignedIn]);
+
   // When editing an existing history nota, automatically keep that record updated in place
   useEffect(() => {
     if (!editingHistoryId) return;
+    let updatedRecord: SavedInvoiceRecord | null = null;
     setHistory((prev) => {
       const existing = prev.find((r) => r.id === editingHistoryId);
       if (!existing) return prev;
@@ -324,19 +373,30 @@ export default function App() {
       ) {
         return prev;
       }
-      return prev.map((rec) =>
-        rec.id === editingHistoryId
-          ? {
-              ...rec,
-              savedAt: new Date().toISOString(),
-              label: nextLabel,
-              total: nextTotal,
-              data: invoice,
-            }
-          : rec,
-      );
+      updatedRecord = {
+        ...existing,
+        savedAt: new Date().toISOString(),
+        label: nextLabel,
+        total: nextTotal,
+        creatorColor: invoice.creatorColor || DEFAULT_CREATOR_COLOR,
+        data: invoice,
+      };
+      return prev.map((rec) => (rec.id === editingHistoryId ? updatedRecord! : rec));
     });
-  }, [invoice, editingHistoryId, summary.grandTotal]);
+
+    if (updatedRecord && isGoogleSignedIn) {
+      const recordToSync = updatedRecord;
+      if (pendingFirestoreSyncRef.current !== null) {
+        window.clearTimeout(pendingFirestoreSyncRef.current);
+      }
+      pendingFirestoreSyncRef.current = window.setTimeout(() => {
+        pendingFirestoreSyncRef.current = null;
+        void upsertSharedInvoice(recordToSync).catch(() => {
+          setSharedHistoryError('Gagal menyimpan perubahan nota ke riwayat bersama.');
+        });
+      }, 700);
+    }
+  }, [invoice, editingHistoryId, summary.grandTotal, isGoogleSignedIn]);
 
   const activeScale = zoomMode === 'fit' ? fitScale : zoomMode === '75' ? 0.75 : 1;
 
@@ -401,10 +461,21 @@ export default function App() {
       savedAt: new Date().toISOString(),
       label: buildInvoiceSummaryLabel(invoice),
       total: summary.grandTotal,
+      creatorColor: invoice.creatorColor || DEFAULT_CREATOR_COLOR,
       data: invoice,
     });
     setHistory(nextRecords);
     setEditingHistoryId(savedId);
+    const savedRec = nextRecords.find((r) => r.id === savedId);
+    if (savedRec && isGoogleSignedIn) {
+      if (pendingFirestoreSyncRef.current !== null) {
+        window.clearTimeout(pendingFirestoreSyncRef.current);
+        pendingFirestoreSyncRef.current = null;
+      }
+      void upsertSharedInvoice(savedRec).catch(() => {
+        setSharedHistoryError('Gagal menyimpan nota ke riwayat bersama.');
+      });
+    }
     setFeedbackMessage(
       isUpdatingExisting
         ? 'Perubahan nota diperbarui di riwayat'
@@ -416,6 +487,11 @@ export default function App() {
     setHistory((prev) => prev.filter((item) => item.id !== id));
     if (editingHistoryId === id) {
       setEditingHistoryId(null);
+    }
+    if (isGoogleSignedIn) {
+      void deleteSharedInvoice(id).catch(() => {
+        setSharedHistoryError('Gagal menghapus nota dari riwayat bersama.');
+      });
     }
   };
 
@@ -660,6 +736,21 @@ export default function App() {
       );
       setHistory(finalized.records);
       setEditingHistoryId(finalized.nextEditingHistoryId);
+      if (hadContent && isGoogleSignedIn) {
+        const targetRecord =
+          (editingHistoryId
+            ? finalized.records.find((r) => r.id === editingHistoryId)
+            : finalized.records[0]) ?? null;
+        if (targetRecord) {
+          if (pendingFirestoreSyncRef.current !== null) {
+            window.clearTimeout(pendingFirestoreSyncRef.current);
+            pendingFirestoreSyncRef.current = null;
+          }
+          void upsertSharedInvoice(targetRecord).catch(() => {
+            setSharedHistoryError('Gagal menyimpan nota ke riwayat bersama.');
+          });
+        }
+      }
       isAutoDateRef.current = true;
       savePreferredCreatorColor(finalized.nextInvoice.creatorColor);
       setInvoice(finalized.nextInvoice);
@@ -981,6 +1072,9 @@ export default function App() {
         isOpen={isHistoryOpen}
         records={history}
         activeRecordId={editingHistoryId}
+        isSharedConnected={isGoogleSignedIn}
+        sharedError={sharedHistoryError}
+        onSignInGoogle={() => void handleGoogleSignIn()}
         onClose={() => setIsHistoryOpen(false)}
         onLoad={(record) => {
           const loaded = normalizeLoadedInvoice(record.data);

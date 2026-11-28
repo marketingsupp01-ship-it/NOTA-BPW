@@ -64,5 +64,7 @@ export interface SavedInvoiceRecord {
   savedAt: string;
   label: string;
   total: number;
+  creatorColor?: string;
+  updatedByLabel?: string;
   data: InvoiceData;
 }
