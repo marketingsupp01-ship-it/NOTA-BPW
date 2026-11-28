@@ -48,7 +48,10 @@ import {
   subscribeToSharedInvoices,
   upsertSharedInvoice,
 } from './utils/sharedHistory';
-import { mergeSharedAndLocalHistory } from './utils/sharedHistoryHelpers';
+import {
+  mergeSharedAndLocalHistory,
+  toSafeInvoiceDocId,
+} from './utils/sharedHistoryHelpers';
 
 const ACTIVE_STORAGE_KEY = 'proforma_invoice_active_v1';
 const HISTORY_STORAGE_KEY = 'proforma_invoice_history_v1';
@@ -333,11 +336,15 @@ export default function App() {
         setSharedHistoryError(null);
         if (!hasMigratedLocalHistoryRef.current) {
           hasMigratedLocalHistoryRef.current = true;
-          const remoteIds = new Set(remoteRecords.map((r) => r.id));
-          const localOnly = historyRef.current.filter((rec) => !remoteIds.has(rec.id));
+          const remoteIds = new Set(remoteRecords.map((r) => toSafeInvoiceDocId(r.id)));
+          const localOnly = historyRef.current.filter(
+            (rec) => !remoteIds.has(toSafeInvoiceDocId(rec.id)),
+          );
           for (const rec of localOnly) {
             void upsertSharedInvoice(rec).catch(() => {
-              // Ignore migration write errors; surface via listener if needed
+              setSharedHistoryError(
+                'Sebagian riwayat lokal gagal diunggah ke server. Klik Simpan pada nota untuk menyinkronkan.',
+              );
             });
           }
           setHistory(mergeSharedAndLocalHistory(remoteRecords, localOnly));
@@ -360,38 +367,39 @@ export default function App() {
   // When editing an existing history nota, automatically keep that record updated in place
   useEffect(() => {
     if (!editingHistoryId) return;
-    let updatedRecord: SavedInvoiceRecord | null = null;
-    setHistory((prev) => {
-      const existing = prev.find((r) => r.id === editingHistoryId);
-      if (!existing) return prev;
-      const nextLabel = buildInvoiceSummaryLabel(invoice);
-      const nextTotal = summary.grandTotal;
-      if (
-        existing.label === nextLabel &&
-        existing.total === nextTotal &&
-        JSON.stringify(existing.data) === JSON.stringify(invoice)
-      ) {
-        return prev;
-      }
-      updatedRecord = {
-        ...existing,
-        savedAt: new Date().toISOString(),
-        label: nextLabel,
-        total: nextTotal,
-        creatorColor: invoice.creatorColor || DEFAULT_CREATOR_COLOR,
-        data: invoice,
-      };
-      return prev.map((rec) => (rec.id === editingHistoryId ? updatedRecord! : rec));
-    });
+    const existing = historyRef.current.find((r) => r.id === editingHistoryId);
+    if (!existing) return;
 
-    if (updatedRecord && isGoogleSignedIn) {
-      const recordToSync = updatedRecord;
+    const nextLabel = buildInvoiceSummaryLabel(invoice);
+    const nextTotal = summary.grandTotal;
+    if (
+      existing.label === nextLabel &&
+      existing.total === nextTotal &&
+      JSON.stringify(existing.data) === JSON.stringify(invoice)
+    ) {
+      return;
+    }
+
+    const updatedRecord: SavedInvoiceRecord = {
+      ...existing,
+      savedAt: new Date().toISOString(),
+      label: nextLabel,
+      total: nextTotal,
+      creatorColor: invoice.creatorColor || DEFAULT_CREATOR_COLOR,
+      data: invoice,
+    };
+
+    setHistory((prev) =>
+      prev.map((rec) => (rec.id === editingHistoryId ? updatedRecord : rec)),
+    );
+
+    if (isGoogleSignedIn) {
       if (pendingFirestoreSyncRef.current !== null) {
         window.clearTimeout(pendingFirestoreSyncRef.current);
       }
       pendingFirestoreSyncRef.current = window.setTimeout(() => {
         pendingFirestoreSyncRef.current = null;
-        void upsertSharedInvoice(recordToSync).catch(() => {
+        void upsertSharedInvoice(updatedRecord).catch(() => {
           setSharedHistoryError('Gagal menyimpan perubahan nota ke riwayat bersama.');
         });
       }, 700);

@@ -145,7 +145,7 @@ service cloud.firestore {
     match /invoices/{invoiceId} {
       allow get: if isVerifiedUser()
         && isValidId(invoiceId)
-        && existing().workspaceKey == 'shared_team';
+        && (resource == null || existing().workspaceKey == 'shared_team');
 
       allow list: if isVerifiedUser()
         && existing().workspaceKey == 'shared_team';
