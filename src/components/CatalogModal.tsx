@@ -25,6 +25,7 @@ interface CatalogModalProps {
   isOpen: boolean;
   products: CatalogProduct[];
   isGoogleConnected: boolean;
+  hasActiveSyncToken: boolean;
   googleUserEmail: string | null;
   isSigningInGoogle: boolean;
   isSyncingSheet: boolean;
@@ -46,6 +47,7 @@ export function CatalogModal({
   isOpen,
   products,
   isGoogleConnected,
+  hasActiveSyncToken,
   googleUserEmail,
   isSigningInGoogle,
   isSyncingSheet,
@@ -215,10 +217,25 @@ export function CatalogModal({
               </div>
 
               {isGoogleConnected ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    data-testid="google-account-badge"
+                    className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1"
+                  >
                     {googleUserEmail || 'Google Terhubung'}
+                    {hasActiveSyncToken ? ' · Sync Aktif' : ' · Tersimpan'}
                   </span>
+                  {!hasActiveSyncToken && (
+                    <button
+                      type="button"
+                      disabled={isSigningInGoogle || isSyncingSheet}
+                      onClick={onGoogleSignIn}
+                      className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100 cursor-pointer disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSigningInGoogle ? 'animate-spin' : ''}`} aria-hidden="true" />
+                      {isSigningInGoogle ? 'Menyambungkan...' : 'Aktifkan Auto-Sync'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={onGoogleSignOut}
@@ -305,7 +322,10 @@ export function CatalogModal({
                       onChange={(e) => onUpdateSheetConfig({ autoSync: e.target.checked })}
                       className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                     />
-                    <span>Perbarui otomatis tiap 30 detik &amp; saat kembali ke tab ini</span>
+                    <span>
+                      Perbarui otomatis tiap 30 detik &amp; saat kembali ke tab ini
+                      {!hasActiveSyncToken && ' (klik Sinkronkan Sekarang setelah refresh)'}
+                    </span>
                   </label>
 
                   <div className="flex items-center gap-3">

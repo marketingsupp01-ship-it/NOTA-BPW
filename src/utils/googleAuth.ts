@@ -1,13 +1,20 @@
 import { getApps, initializeApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
+  browserLocalPersistence,
   getAuth,
   onAuthStateChanged,
+  setPersistence,
   signInWithPopup,
   signOut,
   type User,
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
+import {
+  buildGoogleProviderParams,
+  resolveGoogleAuthState,
+  type GoogleAuthUiState,
+} from './googleAuthHelpers';
 
 export const SHEETS_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
@@ -16,9 +23,17 @@ export const SHEETS_SCOPES = [
 const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-const provider = new GoogleAuthProvider();
-for (const scope of SHEETS_SCOPES) {
-  provider.addScope(scope);
+void setPersistence(auth, browserLocalPersistence).catch(() => {
+  // Fallback safely if persistent IndexedDB storage is restricted
+});
+
+function createGoogleProvider(loginHint?: string | null): GoogleAuthProvider {
+  const nextProvider = new GoogleAuthProvider();
+  for (const scope of SHEETS_SCOPES) {
+    nextProvider.addScope(scope);
+  }
+  nextProvider.setCustomParameters(buildGoogleProviderParams(loginHint));
+  return nextProvider;
 }
 
 let isSigningIn = false;
@@ -26,27 +41,33 @@ let isSigningIn = false;
 let cachedAccessToken: string | null = null;
 
 export function initGoogleAuth(
-  onAuthSuccess?: (user: User, token: string) => void,
-  onAuthFailure?: (user: User | null) => void,
+  onAuthStateChange?: (state: GoogleAuthUiState, user: User | null) => void,
 ): () => void {
   return onAuthStateChanged(auth, (user: User | null) => {
-    if (user && cachedAccessToken) {
-      onAuthSuccess?.(user, cachedAccessToken);
-    } else if (!isSigningIn) {
-      if (!user) {
-        cachedAccessToken = null;
-      }
-      onAuthFailure?.(user);
+    if (!user) {
+      cachedAccessToken = null;
     }
+    if (isSigningIn && !cachedAccessToken) {
+      return;
+    }
+    const nextState = resolveGoogleAuthState({
+      hasFirebaseUser: Boolean(user),
+      userEmail: user?.email,
+      displayName: user?.displayName,
+      hasAccessToken: Boolean(user && cachedAccessToken),
+    });
+    onAuthStateChange?.(nextState, user);
   });
 }
 
-export async function googleSignInForSheets(): Promise<{
+export async function googleSignInForSheets(loginHint?: string | null): Promise<{
   user: User;
   accessToken: string;
 }> {
   isSigningIn = true;
   try {
+    const effectiveHint = loginHint ?? auth.currentUser?.email ?? null;
+    const provider = createGoogleProvider(effectiveHint);
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
@@ -71,3 +92,4 @@ export async function googleSignOut(): Promise<void> {
   cachedAccessToken = null;
   await signOut(auth);
 }
+

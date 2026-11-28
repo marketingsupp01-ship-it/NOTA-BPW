@@ -199,7 +199,8 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isCopyingPng, setIsCopyingPng] = useState(false);
 
-  const [needsGoogleAuth, setNeedsGoogleAuth] = useState(true);
+  const [isGoogleSignedIn, setIsGoogleSignedIn] = useState(false);
+  const [hasSheetsAccessToken, setHasSheetsAccessToken] = useState(false);
   const [googleUserEmail, setGoogleUserEmail] = useState<string | null>(null);
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetLinkConfig>(loadGoogleSheetConfig);
@@ -451,16 +452,11 @@ export default function App() {
   }, [sheetConfig]);
 
   useEffect(() => {
-    return initGoogleAuth(
-      (user) => {
-        setGoogleUserEmail(user.email ?? user.displayName ?? 'Akun Google');
-        setNeedsGoogleAuth(false);
-      },
-      (user) => {
-        setGoogleUserEmail(user ? user.email ?? user.displayName ?? null : null);
-        setNeedsGoogleAuth(true);
-      },
-    );
+    return initGoogleAuth((authState) => {
+      setIsGoogleSignedIn(authState.isSignedIn);
+      setHasSheetsAccessToken(authState.hasActiveSyncToken);
+      setGoogleUserEmail(authState.userLabel);
+    });
   }, []);
 
   const syncGoogleSheet = useCallback(
@@ -468,16 +464,29 @@ export default function App() {
       const targetInput = (overrideInput ?? sheetConfig.spreadsheetInput) || sheetConfig.spreadsheetId;
       if (!targetInput.trim() || isSyncingRef.current) return;
 
-      const accessToken = getInMemoryAccessToken();
+      let accessToken = getInMemoryAccessToken();
       if (!accessToken) {
-        setNeedsGoogleAuth(true);
-        if (!silent) {
+        if (silent) {
+          setHasSheetsAccessToken(false);
+          return;
+        }
+        setIsSigningInGoogle(true);
+        setSheetStatus(null);
+        try {
+          const authRes = await googleSignInForSheets(googleUserEmail);
+          accessToken = authRes.accessToken;
+          setIsGoogleSignedIn(true);
+          setHasSheetsAccessToken(true);
+          setGoogleUserEmail(authRes.user.email ?? authRes.user.displayName ?? 'Akun Google');
+        } catch (err) {
           setSheetStatus({
             type: 'error',
-            text: 'Silakan klik "Sign in with Google" terlebih dahulu untuk membaca spreadsheet.',
+            text: formatGoogleAuthErrorMessage(err),
           });
+          return;
+        } finally {
+          setIsSigningInGoogle(false);
         }
-        return;
       }
 
       isSyncingRef.current = true;
@@ -527,7 +536,7 @@ export default function App() {
       } catch (err) {
         if (err instanceof GoogleSheetsAuthExpiredError) {
           clearInMemoryAccessToken();
-          setNeedsGoogleAuth(true);
+          setHasSheetsAccessToken(false);
         }
         if (!silent || err instanceof GoogleSheetsAuthExpiredError) {
           setSheetStatus({
@@ -540,12 +549,12 @@ export default function App() {
         setIsSyncingSheet(false);
       }
     },
-    [handleReplaceCatalog, sheetConfig.spreadsheetId, sheetConfig.spreadsheetInput],
+    [googleUserEmail, handleReplaceCatalog, sheetConfig.spreadsheetId, sheetConfig.spreadsheetInput],
   );
 
-  // Automatic background sync (every 30s + when returning to browser tab) while connected
+  // Automatic background sync (every 30s + when returning to browser tab) while token is active
   useEffect(() => {
-    if (needsGoogleAuth || !sheetConfig.autoSync || !sheetConfig.spreadsheetId) return;
+    if (!hasSheetsAccessToken || !sheetConfig.autoSync || !sheetConfig.spreadsheetId) return;
 
     const triggerAutoSync = () => {
       const now = Date.now();
@@ -571,15 +580,16 @@ export default function App() {
       window.removeEventListener('focus', triggerAutoSync);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [needsGoogleAuth, sheetConfig.autoSync, sheetConfig.spreadsheetId, syncGoogleSheet]);
+  }, [hasSheetsAccessToken, sheetConfig.autoSync, sheetConfig.spreadsheetId, syncGoogleSheet]);
 
   const handleGoogleSignIn = async () => {
     setIsSigningInGoogle(true);
     setSheetStatus(null);
     try {
-      const res = await googleSignInForSheets();
+      const res = await googleSignInForSheets(googleUserEmail);
       setGoogleUserEmail(res.user.email ?? res.user.displayName ?? 'Akun Google');
-      setNeedsGoogleAuth(false);
+      setIsGoogleSignedIn(true);
+      setHasSheetsAccessToken(true);
       const savedTarget = sheetConfig.spreadsheetInput || sheetConfig.spreadsheetId;
       if (savedTarget && extractSpreadsheetId(savedTarget)) {
         await syncGoogleSheet(savedTarget, false);
@@ -596,8 +606,9 @@ export default function App() {
 
   const handleGoogleSignOut = async () => {
     await googleSignOut();
+    setIsGoogleSignedIn(false);
+    setHasSheetsAccessToken(false);
     setGoogleUserEmail(null);
-    setNeedsGoogleAuth(true);
     setSheetStatus(null);
   };
 
@@ -947,7 +958,8 @@ export default function App() {
       <CatalogModal
         isOpen={isCatalogOpen}
         products={catalog}
-        isGoogleConnected={!needsGoogleAuth}
+        isGoogleConnected={isGoogleSignedIn}
+        hasActiveSyncToken={hasSheetsAccessToken}
         googleUserEmail={googleUserEmail}
         isSigningInGoogle={isSigningInGoogle}
         isSyncingSheet={isSyncingSheet}
