@@ -23,6 +23,7 @@ import {
   GoogleSheetsAuthExpiredError,
   extractSpreadsheetId,
   fetchCatalogFromGoogleSheet,
+  formatGoogleAuthErrorMessage,
   type GoogleSheetLinkConfig,
 } from './utils/googleSheets';
 import {
@@ -48,6 +49,7 @@ const HISTORY_STORAGE_KEY = 'proforma_invoice_history_v1';
 const CATALOG_STORAGE_KEY = 'proforma_product_catalog_v1';
 const EDITING_HISTORY_ID_KEY = 'proforma_editing_history_id_v1';
 const GSHEET_CONFIG_STORAGE_KEY = 'proforma_gsheet_config_v1';
+const CREATOR_COLOR_STORAGE_KEY = 'proforma_creator_color_v1';
 
 const DEFAULT_SHEET_CONFIG: GoogleSheetLinkConfig = {
   spreadsheetInput: '',
@@ -90,17 +92,38 @@ function normalizeLoadedInvoice(parsed: InvoiceData, syncDate = false): InvoiceD
   };
 }
 
+function loadPreferredCreatorColor(): string {
+  try {
+    const raw = localStorage.getItem(CREATOR_COLOR_STORAGE_KEY);
+    return raw && raw.trim() ? raw.trim() : DEFAULT_CREATOR_COLOR;
+  } catch {
+    return DEFAULT_CREATOR_COLOR;
+  }
+}
+
+function savePreferredCreatorColor(color?: string): void {
+  try {
+    const trimmed = color?.trim();
+    if (trimmed) {
+      localStorage.setItem(CREATOR_COLOR_STORAGE_KEY, trimmed);
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
 function loadInitialInvoice(): InvoiceData {
+  const preferredColor = loadPreferredCreatorColor();
   try {
     const raw = localStorage.getItem(ACTIVE_STORAGE_KEY);
-    if (!raw) return createDefaultInvoice();
+    if (!raw) return createDefaultInvoice(new Date(), preferredColor);
     const parsed = JSON.parse(raw) as InvoiceData;
     if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) {
-      return createDefaultInvoice();
+      return createDefaultInvoice(new Date(), preferredColor);
     }
     return normalizeLoadedInvoice(parsed, true);
   } catch {
-    return createDefaultInvoice();
+    return createDefaultInvoice(new Date(), preferredColor);
   }
 }
 
@@ -212,6 +235,9 @@ export default function App() {
   const handleInvoiceChange = (next: InvoiceData) => {
     if (next.dateText !== invoice.dateText) {
       isAutoDateRef.current = next.dateText === syncDateTextToToday(next.dateText);
+    }
+    if (next.creatorColor !== invoice.creatorColor) {
+      savePreferredCreatorColor(next.creatorColor);
     }
     setInvoice(next);
   };
@@ -349,7 +375,9 @@ export default function App() {
   const handleResetTemplate = () => {
     isAutoDateRef.current = true;
     setEditingHistoryId(null);
-    setInvoice(createDefaultInvoice());
+    const keptColor = invoice.creatorColor || loadPreferredCreatorColor();
+    savePreferredCreatorColor(keptColor);
+    setInvoice(createDefaultInvoice(new Date(), keptColor));
     setFeedbackMessage('Membuat nota baru');
   };
 
@@ -558,10 +586,7 @@ export default function App() {
     } catch (err) {
       setSheetStatus({
         type: 'error',
-        text:
-          err instanceof Error
-            ? `Gagal masuk Google: ${err.message}`
-            : 'Gagal masuk dengan akun Google.',
+        text: formatGoogleAuthErrorMessage(err),
       });
     } finally {
       setIsSigningInGoogle(false);
@@ -624,6 +649,7 @@ export default function App() {
       setHistory(finalized.records);
       setEditingHistoryId(finalized.nextEditingHistoryId);
       isAutoDateRef.current = true;
+      savePreferredCreatorColor(finalized.nextInvoice.creatorColor);
       setInvoice(finalized.nextInvoice);
 
       if (copyResult === 'copied') {

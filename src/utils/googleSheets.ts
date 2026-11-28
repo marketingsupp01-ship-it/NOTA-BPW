@@ -21,6 +21,44 @@ export class GoogleSheetsAuthExpiredError extends Error {
   }
 }
 
+export function formatGoogleAuthErrorMessage(err: unknown): string {
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code ?? '')
+      : '';
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  const combined = `${code} ${message}`.toLowerCase();
+
+  if (combined.includes('auth/popup-blocked')) {
+    return 'Popup login Google diblokir browser. Klik ikon pop-up terblokir di pojok kanan kotak alamat browser, pilih "Selalu izinkan pop-up", lalu klik Sign in with Google lagi.';
+  }
+  if (combined.includes('auth/unauthorized-domain')) {
+    return 'Domain website ini belum didaftarkan di Firebase Console (Authentication → Settings → Authorized domains). Tambahkan domain Anda di sana agar login Google bisa digunakan.';
+  }
+  if (combined.includes('auth/popup-closed-by-user')) {
+    return 'Jendela login Google ditutup sebelum proses masuk selesai. Silakan klik Sign in with Google lagi.';
+  }
+  if (combined.includes('auth/cancelled-popup-request')) {
+    return 'Permintaan login sebelumnya masih berjalan. Tutup popup login lain lalu coba lagi.';
+  }
+
+  return err instanceof Error ? `Gagal masuk Google: ${err.message}` : 'Gagal masuk dengan akun Google.';
+}
+
+export function formatGoogleSheetsApiErrorMessage(status: number, apiMessage?: string): string {
+  const normalized = (apiMessage ?? '').toLowerCase();
+  if (normalized.includes('office file') || normalized.includes('not supported for this document')) {
+    return 'File tersebut masih berformat Excel (.xlsx) di Google Drive. Buka file di Google Sheets, klik menu File → Simpan sebagai Google Spreadsheet, lalu gunakan link file hasil simpanannya.';
+  }
+  if (status === 403) {
+    return 'Akun Google ini tidak memiliki izin akses ke spreadsheet tersebut. Pastikan file dibagikan ke akun Google Anda.';
+  }
+  if (status === 404) {
+    return 'Spreadsheet tidak ditemukan. Periksa kembali link Google Sheets.';
+  }
+  return apiMessage || 'Gagal membaca Google Spreadsheet.';
+}
+
 /**
  * Extracts a Google Spreadsheet ID from either a full Google Sheets URL
  * or a raw spreadsheet ID string.
@@ -120,15 +158,7 @@ export async function fetchCatalogFromGoogleSheet(
 
   const metaJson = (await metaRes.json()) as SpreadsheetMetadataResponse;
   if (!metaRes.ok) {
-    if (metaRes.status === 403) {
-      throw new Error(
-        'Akun Google ini tidak memiliki izin akses ke spreadsheet tersebut. Pastikan file dibagikan ke akun Google Anda.',
-      );
-    }
-    if (metaRes.status === 404) {
-      throw new Error('Spreadsheet tidak ditemukan. Periksa kembali link Google Sheets.');
-    }
-    throw new Error(metaJson.error?.message || 'Gagal membaca metadata Google Spreadsheet.');
+    throw new Error(formatGoogleSheetsApiErrorMessage(metaRes.status, metaJson.error?.message));
   }
 
   const spreadsheetTitle = metaJson.properties?.title?.trim() || 'Google Spreadsheet';
@@ -151,7 +181,7 @@ export async function fetchCatalogFromGoogleSheet(
 
   const valuesJson = (await valuesRes.json()) as BatchGetValuesResponse;
   if (!valuesRes.ok) {
-    throw new Error(valuesJson.error?.message || 'Gagal membaca isi data dari Google Sheets.');
+    throw new Error(formatGoogleSheetsApiErrorMessage(valuesRes.status, valuesJson.error?.message));
   }
 
   return mapBatchGetResponseToCatalog(

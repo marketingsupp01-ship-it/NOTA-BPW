@@ -154,6 +154,28 @@ test('resolveItemPricing & resolveInvoiceSummary display discounted prices on sh
     tierPrices: catalog[0].tierPrices,
   };
 
+  // No discount -> HARGA NORMAL hidden
+  const sNormal = resolveInvoiceSummary({ items: [item], priceCode: '' }, catalog);
+  assert.equal(sNormal.showNormalRow, false);
+  assert.equal(sNormal.normalTotal, 780000);
+  assert.equal(sNormal.grandTotal, 780000);
+
+  const sAutoNoDiscount = resolveInvoiceSummary({ items: [item], priceCode: 'AUTO' }, catalog);
+  assert.equal(sAutoNoDiscount.effectiveCode, '');
+  assert.equal(sAutoNoDiscount.showNormalRow, false);
+
+  const manualNoTierItem = {
+    id: 'manual-1',
+    name: 'Barang Custom',
+    unit: 'PCS' as const,
+    qty: '100',
+    price: '65000',
+  };
+  const sManualNoTier = resolveInvoiceSummary({ items: [manualNoTierItem], priceCode: '5' }, catalog);
+  assert.equal(sManualNoTier.normalTotal, 6500000);
+  assert.equal(sManualNoTier.grandTotal, 6500000);
+  assert.equal(sManualNoTier.showNormalRow, false);
+
   const p5 = resolveItemPricing(item, '5', catalog);
   assert.equal(p5.sheetDisplayUnitPrice, 76000);
   assert.equal(p5.sheetDisplayLineTotal, 760000);
@@ -412,8 +434,9 @@ test('finalizeInvoiceToHistory saves nota to history, updates edited history in 
   assert.equal(blankFinalize.records.length, 0);
   assert.equal(blankFinalize.nextEditingHistoryId, null);
 
-  // Filled invoice saves to history and resets to a fresh empty nota
-  const filled = createDefaultInvoice(now);
+  // Filled invoice with custom creatorColor saves to history and resets while keeping creatorColor
+  const filled = createDefaultInvoice(now, '#dc2626');
+  assert.equal(filled.creatorColor, '#dc2626');
   filled.recipientDetails = 'TB. Sukses Makmur';
   filled.district = 'Patrang';
   filled.items = commitItemToList(filled.items, {
@@ -430,10 +453,11 @@ test('finalizeInvoiceToHistory saves nota to history, updates edited history in 
   assert.equal(step1.records[0].total, 390000);
   assert.equal(step1.nextEditingHistoryId, null);
   assert.equal(hasInvoiceContent(step1.nextInvoice), false);
+  assert.equal(step1.nextInvoice.creatorColor, '#dc2626');
   assert.notEqual(step1.nextInvoice.id, filled.id);
 
-  // Editing an existing history nota and finishing updates it in place (no duplicate)
-  const edited = { ...filled, district: 'Sumbersari' };
+  // Editing an existing history nota and finishing updates it in place (no duplicate) and preserves color
+  const edited = { ...filled, district: 'Sumbersari', creatorColor: '#16a34a' };
   const step2 = finalizeInvoiceToHistory(step1.records, step1.savedId, edited, 450000, now);
   assert.equal(step2.records.length, 1);
   assert.equal(step2.records[0].id, step1.savedId);
@@ -441,4 +465,5 @@ test('finalizeInvoiceToHistory saves nota to history, updates edited history in 
   assert.equal(step2.records[0].total, 450000);
   assert.equal(step2.nextEditingHistoryId, null);
   assert.equal(hasInvoiceContent(step2.nextInvoice), false);
+  assert.equal(step2.nextInvoice.creatorColor, '#16a34a');
 });

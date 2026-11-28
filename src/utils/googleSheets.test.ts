@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   buildBatchGetUrl,
   extractSpreadsheetId,
+  formatGoogleAuthErrorMessage,
+  formatGoogleSheetsApiErrorMessage,
   mapBatchGetResponseToCatalog,
 } from './googleSheets';
 
@@ -104,4 +106,31 @@ test('mapBatchGetResponseToCatalog merges 6-sheet Google Sheets data into Catalo
   });
   assert.equal(result.importResult.products[1].name, 'Besi Beton Ulir 10mm');
   assert.equal(result.importResult.products[1].defaultPrice, '85000');
+});
+
+test('formatGoogleAuthErrorMessage translates Firebase Auth errors into Indonesian guidance', () => {
+  assert.match(
+    formatGoogleAuthErrorMessage({ code: 'auth/popup-blocked', message: 'Firebase: Error (auth/popup-blocked).' }),
+    /Popup login Google diblokir browser/i,
+  );
+  assert.match(
+    formatGoogleAuthErrorMessage(new Error('Firebase: Error (auth/unauthorized-domain).')),
+    /Authorized domains/i,
+  );
+  assert.match(
+    formatGoogleAuthErrorMessage({ code: 'auth/popup-closed-by-user' }),
+    /ditutup/i,
+  );
+});
+
+test('formatGoogleSheetsApiErrorMessage explains how to convert Drive .xlsx Office files to native Google Sheets', () => {
+  assert.match(
+    formatGoogleSheetsApiErrorMessage(
+      400,
+      'This operation is not supported for this document. The document must not be an Office file. Please use the Drive API to access this file.',
+    ),
+    /Simpan sebagai Google Spreadsheet/i,
+  );
+  assert.match(formatGoogleSheetsApiErrorMessage(403), /izin akses/i);
+  assert.match(formatGoogleSheetsApiErrorMessage(404), /tidak ditemukan/i);
 });

@@ -172,14 +172,17 @@ export function createDefaultAttentionLines(): AttentionLine[] {
   ];
 }
 
-export function createDefaultInvoice(now: Date = new Date()): InvoiceData {
+export function createDefaultInvoice(
+  now: Date = new Date(),
+  creatorColor: string = DEFAULT_CREATOR_COLOR,
+): InvoiceData {
   return {
     id: `default-proforma-${now.getTime()}-${Math.random().toString(36).slice(2, 6)}`,
     documentTitle: 'PROFORMA INVOICE',
     invoiceNumber: '',
     dateText: formatTodayPlaceDate('Jember', now),
     district: '',
-    creatorColor: DEFAULT_CREATOR_COLOR,
+    creatorColor: creatorColor.trim() || DEFAULT_CREATOR_COLOR,
     recipientHeading: 'Kepada Yth.',
     recipientDetails: '',
     priceCode: 'AUTO',
@@ -602,9 +605,15 @@ export function resolveInvoiceSummary(
     grandTotal += resolved.tierLineTotal;
   }
 
+  const hasDiscount =
+    effectiveCode !== '' &&
+    effectiveCode !== 'TB' &&
+    normalTotal > 0 &&
+    grandTotal < normalTotal;
+
   return {
     effectiveCode,
-    showNormalRow: effectiveCode !== 'TB',
+    showNormalRow: hasDiscount,
     normalTotal,
     grandTotal,
   };
@@ -724,7 +733,7 @@ export function finalizeInvoiceToHistory(
   return {
     records: nextRecords,
     savedId,
-    nextInvoice: createDefaultInvoice(now),
+    nextInvoice: createDefaultInvoice(now, invoice.creatorColor || DEFAULT_CREATOR_COLOR),
     nextEditingHistoryId: null,
   };
 }

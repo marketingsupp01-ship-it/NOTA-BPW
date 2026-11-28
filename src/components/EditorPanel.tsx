@@ -509,11 +509,15 @@ export function EditorPanel({
                 ? 'Mode TB aktif: harga berubah langsung ke tier 40jt, baris HARGA NORMAL disembunyikan, hanya tampil TOTAL.'
                 : data.priceCode === 'AUTO'
                   ? summary.effectiveCode
-                    ? `Mode Otomatis: total normal Rp ${formatRupiahNumber(summary.normalTotal)} menyentuh tier ${summary.effectiveCode}jt. Harga item & TOTAL memakai potongan ${summary.effectiveCode}jt, dengan HARGA NORMAL di atas TOTAL.`
-                    : 'Mode Otomatis: total normal < 5jt memakai harga katalog. Otomatis masuk diskon 5jt, 10jt, 20jt, 40jt saat total menyentuh batasnya.'
+                    ? summary.showNormalRow
+                      ? `Mode Otomatis: total normal Rp ${formatRupiahNumber(summary.normalTotal)} menyentuh tier ${summary.effectiveCode}jt. Harga item & TOTAL memakai potongan ${summary.effectiveCode}jt, dengan HARGA NORMAL di atas TOTAL.`
+                      : `Mode Otomatis: total Rp ${formatRupiahNumber(summary.grandTotal)} menyentuh batas ${summary.effectiveCode}jt (belum ada selisih harga diskon, sehingga baris HARGA NORMAL disembunyikan).`
+                    : 'Mode Otomatis: tidak ada diskon (total < 5jt), hanya tampil TOTAL. Otomatis masuk diskon 5jt, 10jt, 20jt, 40jt saat total menyentuh batasnya.'
                   : data.priceCode
-                    ? `Kode ${data.priceCode}jt aktif: harga item & TOTAL memakai potongan sheet ${data.priceCode}jt, dengan HARGA NORMAL di atas TOTAL.`
-                    : 'Mode Normal: menampilkan harga dari sheet katalog.'}
+                    ? summary.showNormalRow
+                      ? `Kode ${data.priceCode}jt aktif: harga item & TOTAL memakai potongan sheet ${data.priceCode}jt, dengan HARGA NORMAL di atas TOTAL.`
+                      : `Kode ${data.priceCode}jt aktif: belum ada selisih harga diskon pada barang di nota, sehingga baris HARGA NORMAL disembunyikan.`
+                    : 'Mode Normal: tidak ada diskon, baris HARGA NORMAL disembunyikan dan hanya tampil TOTAL.'}
             </p>
           </div>
 
