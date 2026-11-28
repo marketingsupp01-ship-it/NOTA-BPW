@@ -353,9 +353,19 @@ export function EditorPanel({
                 id="doc-district"
                 type="text"
                 value={data.district ?? ''}
-                onChange={(e) => onChange({ ...data, district: e.target.value })}
-                placeholder="Contoh: Sumbersari"
-                className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                onChange={(e) => {
+                  const target = e.target;
+                  const start = target.selectionStart;
+                  const end = target.selectionEnd;
+                  onChange({ ...data, district: target.value.toUpperCase() });
+                  window.requestAnimationFrame(() => {
+                    if (document.activeElement === target && start !== null && end !== null) {
+                      target.setSelectionRange(start, end);
+                    }
+                  });
+                }}
+                placeholder="Contoh: SUMBERSARI"
+                className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm uppercase text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
             </div>
           </div>
@@ -368,9 +378,19 @@ export function EditorPanel({
               id="doc-recipient-details"
               rows={2}
               value={data.recipientDetails}
-              onChange={(e) => onChange({ ...data, recipientDetails: e.target.value })}
-              placeholder="Contoh: TB. Sumber Makmur"
-              className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 resize-y"
+              onChange={(e) => {
+                const target = e.target;
+                const start = target.selectionStart;
+                const end = target.selectionEnd;
+                onChange({ ...data, recipientDetails: target.value.toUpperCase() });
+                window.requestAnimationFrame(() => {
+                  if (document.activeElement === target && start !== null && end !== null) {
+                    target.setSelectionRange(start, end);
+                  }
+                });
+              }}
+              placeholder="Contoh: TB. SUMBER MAKMUR"
+              className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm uppercase text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 resize-y"
             />
           </div>
 

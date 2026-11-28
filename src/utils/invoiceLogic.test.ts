@@ -308,15 +308,15 @@ test('formatDistrictAddress, buildRecipientDisplayText, formatQtyDisplay, format
   assert.equal(formatLocationDate('Jember', '17 November 2026'), 'Jember, 17 November 2026');
   assert.equal(formatIndonesianDate(new Date(2026, 10, 17)), '17 November 2026');
   assert.equal(formatDistrictAddress(''), '');
-  assert.equal(formatDistrictAddress('Sumbersari'), 'Kec. Sumbersari');
-  assert.equal(formatDistrictAddress('Kec. Patrang'), 'Kec. Patrang');
-  assert.equal(formatDistrictAddress('Kecamatan Kaliwates'), 'Kecamatan Kaliwates');
-  assert.equal(buildRecipientDisplayText('', 'Patrang'), 'Kec. Patrang');
+  assert.equal(formatDistrictAddress('Sumbersari'), 'KEC. SUMBERSARI');
+  assert.equal(formatDistrictAddress('Kec. Patrang'), 'KEC. PATRANG');
+  assert.equal(formatDistrictAddress('Kecamatan Kaliwates'), 'KECAMATAN KALIWATES');
+  assert.equal(buildRecipientDisplayText('', 'Patrang'), 'KEC. PATRANG');
   assert.equal(
-    buildRecipientDisplayText('TB. Sumber Makmur', 'Sumbersari'),
-    'TB. Sumber Makmur\nKec. Sumbersari',
+    buildRecipientDisplayText('tb. sumber makmur', 'sumbersari'),
+    'TB. SUMBER MAKMUR\nKEC. SUMBERSARI',
   );
-  assert.equal(buildInvoiceSummaryLabel(createSampleInvoice()), 'TB. Sumber Makmur');
+  assert.equal(buildInvoiceSummaryLabel(createSampleInvoice()), 'TB. SUMBER MAKMUR');
 });
 
 test('commitItemToList and removeItemFromList handle 1-row entry bar commits and edits cleanly', () => {

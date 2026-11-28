@@ -261,10 +261,10 @@ export function createSampleInvoice(now: Date = new Date()): InvoiceData {
     documentTitle: 'PROFORMA INVOICE',
     invoiceNumber: 'PI/2026/11/0042',
     dateText: formatTodayPlaceDate('Jember', now),
-    district: 'Sumbersari',
+    district: 'SUMBERSARI',
     creatorColor: DEFAULT_CREATOR_COLOR,
     recipientHeading: 'Kepada Yth.',
-    recipientDetails: 'TB. Sumber Makmur',
+    recipientDetails: 'TB. SUMBER MAKMUR',
     priceCode: 'AUTO',
     items: [
       {
@@ -642,16 +642,16 @@ export function formatLocationDate(city: string, dateText: string): string {
 }
 
 export function formatDistrictAddress(district: string): string {
-  const trimmed = district.trim();
+  const trimmed = district.trim().toUpperCase();
   if (!trimmed) return '';
-  if (/^kec(\.|amatan)?\b/i.test(trimmed)) {
+  if (/^KEC(\.|AMATAN)?\b/.test(trimmed)) {
     return trimmed;
   }
-  return `Kec. ${trimmed}`;
+  return `KEC. ${trimmed}`;
 }
 
 export function buildRecipientDisplayText(recipientDetails: string, district: string): string {
-  const details = recipientDetails.trim();
+  const details = recipientDetails.trim().toUpperCase();
   const districtLine = formatDistrictAddress(district);
   return [details, districtLine].filter(Boolean).join('\n');
 }

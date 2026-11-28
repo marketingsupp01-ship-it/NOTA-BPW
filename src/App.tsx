@@ -81,7 +81,8 @@ function normalizeLoadedInvoice(parsed: InvoiceData, syncDate = false): InvoiceD
   return {
     ...parsed,
     dateText: syncDate ? syncDateTextToToday(mergedDate) : mergedDate,
-    district: parsed.district ?? '',
+    district: (parsed.district ?? '').toUpperCase(),
+    recipientDetails: (parsed.recipientDetails ?? '').toUpperCase(),
     creatorColor: parsed.creatorColor || DEFAULT_CREATOR_COLOR,
     subtotalLabel: parsed.subtotalLabel?.trim() || 'HARGA NORMAL',
     priceCode: parsed.priceCode === undefined ? 'AUTO' : normalizePriceCode(parsed.priceCode),
