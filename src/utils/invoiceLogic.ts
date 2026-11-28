@@ -696,6 +696,13 @@ export function upsertHistoryRecord<T extends HistoryRecordEntry = HistoryRecord
   };
 }
 
+export const REQUIRED_RECIPIENT_NAME_NOTIFICATION =
+  'Kolom nama wajib diisi! Tanyakan nama dengan menggunakan /tanya di WA.';
+
+export function isRecipientNameValid(data: Pick<InvoiceData, 'recipientDetails'>): boolean {
+  return data.recipientDetails.trim().length > 0;
+}
+
 export function hasInvoiceContent(data: InvoiceData): boolean {
   const hasItems = data.items.some((item) => !isInvoiceItemEmpty(item));
   const hasRecipient = Boolean(data.recipientDetails.trim());

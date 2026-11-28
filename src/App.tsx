@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookmarkPlus, Copy, Download, Eye, EyeOff, Printer } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, Copy, Download, Eye, EyeOff, Printer, X } from 'lucide-react';
 import { CatalogModal } from './components/CatalogModal';
 import { EditorPanel } from './components/EditorPanel';
 import { HistoryModal } from './components/HistoryModal';
@@ -28,6 +28,7 @@ import {
 } from './utils/googleSheets';
 import {
   DEFAULT_CREATOR_COLOR,
+  REQUIRED_RECIPIENT_NAME_NOTIFICATION,
   buildInvoiceSummaryLabel,
   commitItemToList,
   createDefaultInvoice,
@@ -36,6 +37,7 @@ import {
   finalizeInvoiceToHistory,
   formatRupiahNumber,
   hasInvoiceContent,
+  isRecipientNameValid,
   normalizeAllowedUnit,
   normalizePriceCode,
   removeItemFromList,
@@ -218,6 +220,7 @@ export default function App() {
     null,
   );
   const [sharedHistoryError, setSharedHistoryError] = useState<string | null>(null);
+  const [recipientNameError, setRecipientNameError] = useState<string | null>(null);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const isAutoDateRef = useRef(true);
@@ -255,7 +258,26 @@ export default function App() {
     if (next.creatorColor !== invoice.creatorColor) {
       savePreferredCreatorColor(next.creatorColor);
     }
+    if (isRecipientNameValid(next)) {
+      setRecipientNameError(null);
+    }
     setInvoice(next);
+  };
+
+  const requireRecipientName = (): boolean => {
+    if (isRecipientNameValid(invoice)) {
+      setRecipientNameError(null);
+      return true;
+    }
+    setRecipientNameError(REQUIRED_RECIPIENT_NAME_NOTIFICATION);
+    setIsPreviewOnly(false);
+    setMobileTab('editor');
+    window.requestAnimationFrame(() => {
+      const el = document.getElementById('doc-recipient-details');
+      el?.focus();
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return false;
   };
 
   useEffect(() => {
@@ -445,6 +467,7 @@ export default function App() {
   const handleResetTemplate = () => {
     isAutoDateRef.current = true;
     setEditingHistoryId(null);
+    setRecipientNameError(null);
     const keptColor = invoice.creatorColor || loadPreferredCreatorColor();
     savePreferredCreatorColor(keptColor);
     setInvoice(createDefaultInvoice(new Date(), keptColor));
@@ -454,6 +477,7 @@ export default function App() {
   const handleLoadSample = () => {
     isAutoDateRef.current = true;
     setEditingHistoryId(null);
+    setRecipientNameError(null);
     setInvoice(createSampleInvoice());
     if (catalog.length === 0) {
       setCatalog(createSampleCatalog());
@@ -462,6 +486,7 @@ export default function App() {
   };
 
   const handleSaveToHistory = () => {
+    if (!requireRecipientName()) return;
     const isUpdatingExisting = Boolean(
       editingHistoryId && history.some((rec) => rec.id === editingHistoryId),
     );
@@ -719,16 +744,19 @@ export default function App() {
   };
 
   const handlePrint = () => {
+    if (!requireRecipientName()) return;
     window.print();
   };
 
   const handleDownloadPng = () => {
+    if (!requireRecipientName()) return;
     downloadInvoiceAsPng(invoice, catalog);
     setFeedbackMessage('PNG horizontal berhasil diunduh');
   };
 
   const handleFinishAndCopyPng = async () => {
     if (isCopyingPng) return;
+    if (!requireRecipientName()) return;
     setIsCopyingPng(true);
     const snapshotInvoice = invoice;
     const snapshotTotal = summary.grandTotal;
@@ -907,6 +935,10 @@ export default function App() {
                   ? history.find((r) => r.id === editingHistoryId)?.label ?? null
                   : null
               }
+              recipientNameError={recipientNameError}
+              onRecipientNameBlurEmpty={() =>
+                setRecipientNameError(REQUIRED_RECIPIENT_NAME_NOTIFICATION)
+              }
               onStartNewNota={handleResetTemplate}
               onOpenCatalog={() => setIsCatalogOpen(true)}
               onChange={handleInvoiceChange}
@@ -1030,6 +1062,33 @@ export default function App() {
 
           {/* Sheet Canvas Container + Bottom-Right Finish & Copy PNG Action */}
           <div className="relative flex-1 min-h-0 flex flex-col">
+            {recipientNameError && (
+              <div
+                role="alert"
+                data-testid="recipient-name-alert"
+                className="mx-4 mt-3 shrink-0 rounded-lg border border-red-300 bg-red-50 px-3.5 py-2.5 text-xs text-red-900 shadow-sm flex items-center justify-between gap-3 no-print"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" aria-hidden="true" />
+                  <p className="font-medium">
+                    <strong className="font-semibold">Kolom Nama Pemesan wajib diisi!</strong>{' '}
+                    Tanyakan nama dengan menggunakan{' '}
+                    <code className="rounded bg-red-100 px-1 py-0.5 font-mono font-semibold text-red-950">
+                      /tanya
+                    </code>{' '}
+                    di WA.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRecipientNameError(null)}
+                  aria-label="Tutup notifikasi nama wajib diisi"
+                  className="p-1 rounded text-red-700 hover:bg-red-100 hover:text-red-950 shrink-0 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            )}
             <div
               ref={stageRef}
               className="flex-1 min-h-0 overflow-auto p-6 pb-16 flex items-center justify-center"
@@ -1088,6 +1147,9 @@ export default function App() {
           const loaded = normalizeLoadedInvoice(record.data);
           isAutoDateRef.current = loaded.dateText === syncDateTextToToday(loaded.dateText);
           setEditingHistoryId(record.id);
+          setRecipientNameError(
+            isRecipientNameValid(loaded) ? null : REQUIRED_RECIPIENT_NAME_NOTIFICATION,
+          );
           setInvoice(loaded);
           setFeedbackMessage(`Mengedit nota "${record.label}"`);
         }}

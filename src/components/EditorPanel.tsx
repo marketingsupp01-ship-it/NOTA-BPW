@@ -64,6 +64,8 @@ interface EditorPanelProps {
   data: InvoiceData;
   catalog: CatalogProduct[];
   editingHistoryLabel?: string | null;
+  recipientNameError?: string | null;
+  onRecipientNameBlurEmpty?: () => void;
   onStartNewNota: () => void;
   onOpenCatalog: () => void;
   onChange: (next: InvoiceData) => void;
@@ -77,6 +79,8 @@ export function EditorPanel({
   data,
   catalog,
   editingHistoryLabel = null,
+  recipientNameError = null,
+  onRecipientNameBlurEmpty,
   onStartNewNota,
   onOpenCatalog,
   onChange,
@@ -378,13 +382,19 @@ export function EditorPanel({
           </div>
 
           <div>
-            <label htmlFor="doc-recipient-details" className="block text-xs font-medium text-slate-700 mb-1">
-              Nama Pemesan / Toko (opsional)
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label htmlFor="doc-recipient-details" className="block text-xs font-medium text-slate-700">
+                Nama Pemesan / Toko <span className="text-red-600" aria-hidden="true">*</span>
+              </label>
+              <span className="text-[11px] font-medium text-red-600">Wajib diisi</span>
+            </div>
             <textarea
               ref={recipientDetailsRef}
               id="doc-recipient-details"
               rows={2}
+              required
+              aria-required="true"
+              aria-invalid={Boolean(recipientNameError)}
               value={data.recipientDetails}
               onChange={(e) => {
                 const target = e.target;
@@ -397,9 +407,32 @@ export function EditorPanel({
                   }
                 });
               }}
+              onBlur={() => {
+                if (!data.recipientDetails.trim()) {
+                  onRecipientNameBlurEmpty?.();
+                }
+              }}
               placeholder="Contoh: TB. SUMBER MAKMUR"
-              className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm uppercase text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900 resize-y"
+              className={`w-full rounded-md border px-2.5 py-1.5 text-sm uppercase text-slate-900 focus:outline-none focus:ring-1 resize-y ${
+                recipientNameError
+                  ? 'border-red-500 bg-red-50/40 focus:border-red-600 focus:ring-red-500'
+                  : 'border-slate-300 focus:border-slate-900 focus:ring-slate-900'
+              }`}
             />
+            {recipientNameError ? (
+              <p
+                role="alert"
+                data-testid="recipient-name-inline-error"
+                className="mt-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-800"
+              >
+                {recipientNameError}
+              </p>
+            ) : !data.recipientDetails.trim() ? (
+              <p className="mt-1 text-[11px] text-amber-700">
+                Wajib diisi — jika belum ada nama, tanyakan nama dengan menggunakan{' '}
+                <code className="font-mono font-semibold text-amber-900">/tanya</code> di WA.
+              </p>
+            ) : null}
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-2">

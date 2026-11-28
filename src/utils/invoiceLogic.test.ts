@@ -5,6 +5,7 @@ import {
   CREATOR_COLOR_PRESETS,
   DEFAULT_CREATOR_COLOR,
   type HistoryRecordEntry,
+  REQUIRED_RECIPIENT_NAME_NOTIFICATION,
   buildInvoiceSummaryLabel,
   buildRecipientDisplayText,
   calculateInvoiceSubtotal,
@@ -24,6 +25,7 @@ import {
   formatTodayPlaceDate,
   getSearchTokens,
   hasInvoiceContent,
+  isRecipientNameValid,
   normalizeAllowedUnit,
   normalizePriceCode,
   parseNumericInput,
@@ -493,4 +495,11 @@ test('parseWorkbookSheets never misreads leading No column as Rp 1 price', () =>
     },
   ]);
   assert.equal(noNominalHeader.products[0].defaultPrice, '95000');
+});
+
+test('isRecipientNameValid enforces non-empty recipient name and notification mentions /tanya di WA', () => {
+  assert.equal(isRecipientNameValid({ recipientDetails: '' }), false);
+  assert.equal(isRecipientNameValid({ recipientDetails: '   \n  ' }), false);
+  assert.equal(isRecipientNameValid({ recipientDetails: 'TB. MAJU JAYA' }), true);
+  assert.match(REQUIRED_RECIPIENT_NAME_NOTIFICATION, /\/tanya di wa/i);
 });
